@@ -1,5 +1,7 @@
 # Teste de Lógica de Programação
 
+Linguagem de programação utilizada: Python 3
+
 Output
 
 ```bash
