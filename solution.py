@@ -29,7 +29,7 @@ def main():
     cursor = db.cursor()
 
     # Motoboy a ser consultado
-    motoboy_name = ''
+    motoboy_name = None
 
     # Captura o nome do motoboy atráves da linha de comando
     if len(sys.argv) > 1:
@@ -124,9 +124,16 @@ def main():
         )
 
     print_table_header()
-    for mb in pedidos_entregues.values():
-        for pedido in mb:
-            print_table_row(pedido)
+    for mb in pedidos_entregues:
+
+        if motoboy_name is not None:
+            if mb == motoboy_name:
+                for pedido in pedidos_entregues[mb]:
+                    print_table_row(pedido)
+                break
+        else:
+            for pedido in pedidos_entregues[mb]:
+                print_table_row(pedido)
     print_separator()
 
 
