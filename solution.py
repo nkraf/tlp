@@ -65,7 +65,8 @@ def main():
             'loja': loja,
             'pedidos': pedidos_loja,
             'motoboys': motoboys_da_loja,
-            'fila_motoboys': [x for x in range(0, len(motoboys_da_loja))]
+            'fila_motoboys': [x for x in range(0, len(motoboys_da_loja))],
+            'ciclo': 0
         })
 
     # Demais motoboys
@@ -81,6 +82,7 @@ def main():
     loja = 0
     quantidade_lojas = len(entregas)
     i = 0
+    ciclo = 0
     while i < quantidade_pedidos:
         if not entregas[loja]['pedidos']:
             lojas_processadas += 1
@@ -91,6 +93,11 @@ def main():
         motoboy = None
 
         while motoboy is None:
+            if not entregas[loja]['fila_motoboys']:
+                if entregas[loja]['ciclo'] < ciclo:
+                    entregas[loja]['fila_motoboys'] = [x for x in range(0, len(entregas[loja]['motoboys']))]
+                    entregas[loja]['ciclo'] += 1
+
             if entregas[loja]['fila_motoboys']:
                 motoboy = entregas[loja]['motoboys'][entregas[loja]['fila_motoboys'].pop(0)]
                 break
@@ -100,9 +107,8 @@ def main():
                 break
 
             if motoboy is None:
-                for l in entregas:
-                    l['fila_motoboys'] = [x for x in range(0, len(l['motoboys']))]
                 fila_motoboys = [x for x in range(0, len(motoboys))]
+                ciclo += 1
 
         preco_fixo_mb = float(motoboy[2])
         pedidos_entregues[motoboy[1]].append(
