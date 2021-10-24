@@ -35,93 +35,93 @@ def main():
     if len(sys.argv) > 1:
         motoboy_name = sys.argv[1]
 
-    # Pedidos ordernados por loja
-    pedidos = cursor.execute("""
-        SELECT LOJA.*, PEDIDO.PRECO FROM LOJA INNER JOIN PEDIDO ON PEDIDO.CODIGO_LOJA = LOJA.CODIGO
-        ORDER BY LOJA.CODIGO ASC
+    # Lojas
+    lojas = cursor.execute("""
+        SELECT LOJA.* from LOJA INNER JOIN PEDIDO ON PEDIDO.CODIGO_LOJA = LOJA.CODIGO GROUP BY LOJA.CODIGO ORDER by count(PEDIDO.CODIGO);
     """).fetchall()
 
-    # Motoboys ordenados por exclusividade da loja
-    motoboys_com_exclusividade = cursor.execute("""
-        SELECT MOTOBOY.*, MOTOBOY_EXCLUSIVIDADE.CODIGO_LOJA AS LOJA_PRIORITARIA FROM MOTOBOY
-        JOIN MOTOBOY_EXCLUSIVIDADE ON MOTOBOY_EXCLUSIVIDADE.CODIGO_MOTOBOY = MOTOBOY.CODIGO
-        ORDER BY MOTOBOY_EXCLUSIVIDADE.CODIGO_LOJA ASC NULLS LAST
-    """).fetchall()
+    quantidade_pedidos = int(cursor.execute("""
+        SELECT count(*) from PEDIDO;
+    """).fetchone()[0])
+
+    # Pedidos por loja
+    entregas = []
+    pedidos_entregues = {}
+    for mb in cursor.execute("SELECT MOTOBOY.NOME FROM MOTOBOY").fetchall():
+        pedidos_entregues[mb[0]] = []
+
+    for loja in lojas:
+        pedidos_loja = cursor.execute("""
+            SELECT * FROM PEDIDO WHERE CODIGO_LOJA = ?;
+        """, str(loja[0])).fetchall()
+
+        motoboys_da_loja = cursor.execute("""
+            select * from MOTOBOY
+            JOIN MOTOBOY_EXCLUSIVIDADE ON MOTOBOY_EXCLUSIVIDADE.CODIGO_MOTOBOY = MOTOBOY.CODIGO
+            WHERE MOTOBOY_EXCLUSIVIDADE.CODIGO_LOJA = ?;
+        """, str(loja[0])).fetchall()
+
+        entregas.append({
+            'loja': loja,
+            'pedidos': pedidos_loja,
+            'motoboys': motoboys_da_loja,
+            'fila_motoboys': [x for x in range(0, len(motoboys_da_loja))]
+        })
 
     # Demais motoboys
     motoboys = cursor.execute("""
-        SELECT MOTOBOY.*, MOTOBOY_EXCLUSIVIDADE.CODIGO_LOJA AS LOJA_PRIORITARIA FROM MOTOBOY
+        SELECT MOTOBOY.* FROM MOTOBOY
         LEFT JOIN MOTOBOY_EXCLUSIVIDADE ON MOTOBOY_EXCLUSIVIDADE.CODIGO_MOTOBOY = MOTOBOY.CODIGO
         WHERE MOTOBOY_EXCLUSIVIDADE.CODIGO_LOJA IS NULL
     """).fetchall()
 
-    # Lista de indices dos exclusivos
-    motoboys_index_queue_e = [motoboys_com_exclusividade[x] for x in range(0, len(motoboys_com_exclusividade))]
+    fila_motoboys = [x for x in range(0, len(motoboys))]
 
-    # Lista de indices dos demais motoboys
-    motoboys_index_queue = [motoboys[x] for x in range(0, len(motoboys))]
+    lojas_processadas = 0
+    loja = 0
+    quantidade_lojas = len(entregas)
+    i = 0
+    while i < quantidade_pedidos:
+        if not entregas[loja]['pedidos']:
+            lojas_processadas += 1
+            loja = lojas_processadas
+            continue
 
-    lojas_computadas = []
-    loja_atual = None
-
-    pedidos_entregues = {}
-    for mb in motoboys_index_queue_e:
-        pedidos_entregues[mb[1]] = []
-
-    for mb in motoboys_index_queue:
-        pedidos_entregues[mb[1]] = []
-
-    # Itera todos os pedidos
-    for pedido in pedidos:
-
-        # Move os motoboys exclusivos já que a loja não tem mais nenhum pedido
-        if pedido[0] != loja_atual:
-            swp = []
-            for mb in motoboys_index_queue_e:
-                if mb[3] in lojas_computadas:
-                    swp.append(mb)
-
-            for mb in swp:
-                motoboys_index_queue_e.remove(mb)
-                motoboys_index_queue.append(mb)
-
-        loja_atual = pedido[0]
-        lojas_computadas.append(loja_atual)
+        pedido = entregas[loja]['pedidos'].pop(0)
         motoboy = None
 
         while motoboy is None:
+            if entregas[loja]['fila_motoboys']:
+                motoboy = entregas[loja]['motoboys'][entregas[loja]['fila_motoboys'].pop(0)]
+                break
 
-            # Seleciona o motoboy exclusivo
-            for mb in motoboys_index_queue_e:
-                if mb[3] == loja_atual:
-                    motoboy = mb
-                    motoboys_index_queue_e.remove(mb)
-                    break
+            if motoboy is None and fila_motoboys:
+                motoboy = motoboys[fila_motoboys.pop(0)]
+                break
 
-            # Seleciona qualquer motoboy
             if motoboy is None:
-                for mb in motoboys_index_queue:
-                    motoboy = mb
-                    motoboys_index_queue.remove(mb)
-                    break
-
-            # Reinicia a rolagem
-            if motoboy is None:
-                motoboys_index_queue_e = [motoboys_com_exclusividade[x] for x in
-                                          range(0, len(motoboys_com_exclusividade))]
-                motoboys_index_queue = [motoboys[x] for x in range(0, len(motoboys))]
+                for l in entregas:
+                    l['fila_motoboys'] = [x for x in range(0, len(l['motoboys']))]
+                fila_motoboys = [x for x in range(0, len(motoboys))]
 
         preco_fixo_mb = float(motoboy[2])
         pedidos_entregues[motoboy[1]].append(
             {
-                'loja':pedido[1],
-                'valor_total_frete': preco_fixo_mb + float(pedido[2]) / 100 * pedido[3],
+                'loja': entregas[loja]['loja'][1],
+                'valor_total_frete': preco_fixo_mb + float(pedido[2]) / 100 * float(entregas[loja]['loja'][2]),
                 'taxa': pedido[2],
                 'preco_fixo_mb': motoboy[2],
-                'preco': pedido[3],
+                'preco': entregas[loja]['loja'][2],
                 'nome': motoboy[1]
             }
         )
+
+        loja += 1
+        if loja >= quantidade_lojas:
+            loja = lojas_processadas
+        i += 1
+
+
 
     print_table_header()
     for mb in pedidos_entregues:
@@ -135,7 +135,6 @@ def main():
             for pedido in pedidos_entregues[mb]:
                 print_table_row(pedido)
     print_separator()
-
 
     cursor.close()
     db.close()
