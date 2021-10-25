@@ -12,7 +12,7 @@ def print_table_header():
 
 def print_table_row(motoboy):
     print('| %7s | %9s | %8s | %9s | %12s | %27s |'%(motoboy['nome'], motoboy['preco_fixo_mb'],
-          motoboy['loja'], motoboy['taxa'], motoboy['preco'], motoboy['valor_total_frete']))
+          motoboy['loja'], motoboy['preco'], motoboy['taxa'], motoboy['valor_total_frete']))
 
 
 def print_separator():
